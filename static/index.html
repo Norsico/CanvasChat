@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CanvasChat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0c0f;
+      --panel: #111116;
+      --card: #16161d;
+      --edge: #d1d1d6;
+      --accent: #f1f1f5;
+      --text: #f5f5f7;
+      --muted: #9b9ba3;
+      --danger: #ff6b6b;
+      --shadow: rgba(0,0,0,0.42);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(140deg, #0a0a0e, #0f0f15 55%, #0a0a0e);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 18px 22px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+    }
+    .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-size: 12px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button, select, textarea, input { font-family: inherit; }
+    button {
+      background: var(--edge);
+      color: #0c0c0f;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 22px var(--shadow);
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
+    }
+    button.secondary {
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: none;
+    }
+    button:active { transform: translateY(1px); }
+    main { flex: 1; display: grid; grid-template-rows: 1fr; gap: 14px; padding: 0 22px 20px; position: relative; }
+    #canvas-wrap {
+      position: relative;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px;
+      overflow: hidden;
+      min-height: 560px;
+    }
+    #viewport {
+      position: absolute;
+      inset: 0;
+      transform-origin: 0 0;
+    }
+    #edges {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    #nodes {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .node {
+      position: absolute;
+      width: 240px;
+      min-width: 220px;
+      min-height: 160px;
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 14px 36px var(--shadow);
+      transition: box-shadow 0.2s ease, border-color 0.1s ease;
+      cursor: default;
+      overflow: hidden;
+    }
+    .node-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 6px 6px 8px;
+      margin: -6px -6px 6px -6px;
+      border-radius: 10px 10px 8px 8px;
+      background:
+        repeating-linear-gradient(
+          135deg,
+          rgba(255,255,255,0.07),
+          rgba(255,255,255,0.07) 6px,
+          rgba(255,255,255,0.02) 6px,
+          rgba(255,255,255,0.02) 12px
+        ),
+        rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      cursor: grab;
+    }
+    .node-header h3 { margin: 0; font-size: 16px; }
+    .node:hover { transform: translateY(-2px); box-shadow: 0 16px 40px var(--shadow); border-color: rgba(255,255,255,0.16);}
+    .node.selected { outline: 1px solid rgba(245,245,247,0.9); outline-offset: 2px; }
+    .node h3 { margin: 0; font-size: 17px; }
+    .meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
+    .stack { margin-top: 6px; display: grid; gap: 6px; max-height: calc(100% - 72px); overflow-y: auto; padding-right: 4px; }
+    .stack { scrollbar-width: thin; scrollbar-color: rgba(241,241,245,0.6) rgba(255,255,255,0.03); }
+    .stack::-webkit-scrollbar { width: 8px; }
+    .stack::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 12px; }
+    .stack::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(241,241,245,0.9), rgba(241,241,245,0.6));
+      border-radius: 12px;
+      border: 2px solid rgba(17,17,22,0.85);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.35);
+    }
+    .stack::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(241,241,245,1), rgba(241,241,245,0.72)); }
+    .bubble {
+      border-radius: 10px;
+      padding: 8px 10px;
+      line-height: 1.4;
+      font-size: 13px;
+      border: 1px solid rgba(255,255,255,0.06);
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow: hidden;
+    }
+    .bubble.collapsible { position: relative; padding-bottom: 34px; }
+    .bubble.collapsed .bubble-body { max-height: 220px; overflow: hidden; }
+    .bubble.collapsed .bubble-fade {
+      display: block;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 32px;
+      height: 72px;
+      background: linear-gradient(180deg, rgba(22,22,29,0), rgba(22,22,29,0.9));
+      pointer-events: none;
+    }
+    .bubble .bubble-body { white-space: pre-wrap; }
+    .bubble .collapse-toggle {
+      position: absolute;
+      right: 8px;
+      bottom: 6px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: #f7f7f8;
+      color: #0c0c0f;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .bubble.user { background: #f7f7f8; color: #0c0c0f; border-color: rgba(0,0,0,0.08);}
+    .bubble.assistant { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.12);}
+    .bubble code {
+      background: rgba(0,0,0,0.15);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .bubble pre.code {
+      background: rgba(0,0,0,0.28);
+      border-radius: 10px;
+      padding: 10px;
+      overflow: auto;
+      border: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+      margin: 10px 0;
+    }
+    .bubble pre.code code { display: block; font-family: "SFMono-Regular", Menlo, Consolas, monospace; }
+    .bubble pre.code .code-copy {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .bubble p { margin: 6px 0; }
+    .bubble h1, .bubble h2, .bubble h3, .bubble h4, .bubble h5, .bubble h6 { margin: 6px 0; }
+    .bubble h1 { font-size: 18px; }
+    .bubble h2 { font-size: 16px; }
+    .bubble h3 { font-size: 15px; }
+    .bubble blockquote {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border-left: 3px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+    }
+    .bubble hr {
+      border: 0;
+      border-top: 1px solid rgba(255,255,255,0.15);
+      margin: 10px 0;
+    }
+    .bubble table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .bubble table th, .bubble table td {
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 6px 8px;
+    }
+    .bubble ul, .bubble ol { padding-left: 20px; margin: 8px 0; }
+    .bubble li { margin: 4px 0; }
+    .bubble .task { list-style: none; padding-left: 0; }
+    .bubble .task .box { display: inline-flex; align-items: center; gap: 6px; }
+    .bubble .task input { pointer-events: none; }
+    .bubble .math {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      background: rgba(255,255,255,0.04);
+      padding: 2px 4px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .bubble .math-block {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      background: rgba(255,255,255,0.04);
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      margin: 8px 0;
+      display: block;
+    }
+    .bubble a { color: var(--edge); }
+    .footer { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .footer button { font-size: 12px; padding: 8px 10px; }
+    .badge { color: var(--muted); font-size: 13px; }
+    .resize-handle {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      right: 6px;
+      bottom: 6px;
+      border: none;
+      border-radius: 10px;
+      background: none;
+      opacity: 0;
+      cursor: se-resize;
+      transition: opacity 0.15s ease;
+      pointer-events: auto;
+    }
+    .node:hover .resize-handle,
+    .resize-handle:active {
+      opacity: 0.18;
+      background:
+        linear-gradient(135deg, rgba(241,241,245,0.28), rgba(241,241,245,0));
+    }
+    form#composer {
+      position: fixed;
+      --composer-input-height: 88px;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 24px;
+      width: min(560px, 70vw);
+      background: rgba(17,17,22,0.92);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      box-shadow: 0 18px 36px rgba(0,0,0,0.5);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+      pointer-events: auto;
+      transition: transform 0.25s ease, opacity 0.2s ease;
+    }
+    form#composer.composer-hidden {
+      opacity: 0;
+      transform: translate(-50%, 24px);
+      pointer-events: none;
+    }
+    form#composer textarea {
+      width: 100%;
+      min-height: var(--composer-input-height);
+      height: var(--composer-input-height);
+      max-height: 360px;
+      resize: none;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.15);
+      color: var(--text);
+      padding: 10px;
+      font-size: 14px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(241,241,245,0.35) rgba(255,255,255,0.05);
+    }
+    form#composer textarea::-webkit-scrollbar { width: 8px; }
+    form#composer textarea::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+    }
+    form#composer textarea::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(241,241,245,0.6), rgba(241,241,245,0.28));
+      border-radius: 10px;
+      border: 2px solid rgba(12,12,15,0.92);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.28);
+    }
+    form#composer textarea::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(241,241,245,0.74), rgba(241,241,245,0.38));
+    }
+    #composer-resize-handle {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: -10px;
+      height: 12px;
+      border-radius: 12px 12px 8px 8px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.04)),
+        rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+      cursor: ns-resize;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease, background 0.15s ease;
+      backdrop-filter: blur(6px);
+    }
+    form#composer:hover #composer-resize-handle,
+    form#composer:focus-within #composer-resize-handle {
+      opacity: 0.82;
+      pointer-events: auto;
+    }
+    #composer-resize-handle:hover { opacity: 0.95; background: rgba(255,255,255,0.06); }
+    #composer-resize-handle::after {
+      content: "";
+      width: 60px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(241,241,245,0.45);
+      box-shadow: inset 0 1px 0 rgba(0,0,0,0.35);
+    }
+    form#composer textarea:focus { outline: 1px solid var(--edge); border-color: var(--edge); }
+    .control-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .compose-row { display: flex; gap: 10px; align-items: flex-end; }
+    .compose-row textarea { flex: 1; }
+    .send-btn {
+      width: 52px;
+      height: 52px;
+      padding: 0;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 30% 30%, #ffffff, #dfe0e5 60%, #c8cad4);
+      box-shadow:
+        0 14px 32px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.4);
+      border: 1px solid rgba(255,255,255,0.35);
+    }
+    .send-btn svg { width: 24px; height: 24px; fill: #0c0c0f; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+    select, input[type="text"] {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    #status { color: var(--muted); font-size: 13px; }
+    .hint { display:none; }
+    .empty { color: var(--muted); padding: 24px; }
+    .edge {
+      stroke: rgba(241, 241, 245, 0.6);
+      stroke-width: 2;
+      fill: none;
+      filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.35));
+    }
+    .edge.selected {
+      stroke: var(--edge);
+      stroke-width: 2.8;
+    }
+    .node-loading {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: var(--edge);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="pill">Canvas</span>
+      <span id="canvas-title">多分支对话画布</span>
+    </div>
+    <div class="toolbar" style="justify-content:center; flex:1;">
+      <button id="new-branch-global">新建分支</button>
+      <button class="secondary" id="delete-current">删除分支</button>
+    </div>
+    <div class="toolbar" style="justify-content:flex-end;">
+      <button id="new-canvas">新建画布</button>
+      <button id="export-canvas">保存</button>
+      <button class="secondary" id="import-canvas">导入</button>
+      <input id="import-file" type="file" accept="application/json" style="display:none;" />
+    </div>
+  </header>
+
+  <main>
+    <div id="canvas-wrap">
+      <div id="viewport">
+        <svg id="edges"></svg>
+        <div id="nodes"></div>
+      </div>
+    </div>
+
+    <form id="composer">
+      <div id="composer-resize-handle" aria-hidden="true" title="拖拽调整输入区高度"></div>
+      <div class="control-row">
+        <div class="badge" id="current-branch">当前分支：-</div>
+      </div>
+      <div class="compose-row">
+        <textarea id="message" placeholder="在选定分支继续聊天，或先派生一个分支。" required></textarea>
+        <button type="submit" class="send-btn" aria-label="发送">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.4 11.1c-.5.2-.5.9 0 1.1l16.7 7.1c.4.2.9-.2.8-.7l-1.7-7.1 1.7-7.1c.1-.5-.4-.9-.8-.7L3.4 11.1Zm2.8.4L17 6.6l-1.1 4.4c-.1.3.1.6.5.6h3l-8.3 3.6 1.1-3.6-6.8.5Z"/>
+          </svg>
+          <span class="sr-only">发送</span>
+        </button>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    const canvasWrap = document.getElementById("canvas-wrap");
+    const viewport = document.getElementById("viewport");
+    const edgesEl = document.getElementById("edges");
+    const nodesEl = document.getElementById("nodes");
+    const currentBranchLabel = document.getElementById("current-branch");
+    const canvasTitleEl = document.getElementById("canvas-title");
+    const brandEl = document.querySelector(".brand");
+    const messageInput = document.getElementById("message");
+    const composerForm = document.getElementById("composer");
+    const composerResizeHandle = document.getElementById("composer-resize-handle");
+    const sendBtn = composerForm.querySelector('button[type="submit"]');
+    const branchBtn = document.getElementById("new-branch-global");
+    const exportBtn = document.getElementById("export-canvas");
+    const importBtn = document.getElementById("import-canvas");
+    const importFile = document.getElementById("import-file");
+    const newCanvasBtn = document.getElementById("new-canvas");
+
+    const api = {
+      async getNodes() {
+        const res = await fetch("/api/nodes");
+        if (!res.ok) throw new Error("加载节点失败");
+        return res.json();
+      },
+      async send(nodeId, message) {
+        const res = await fetch("/api/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ node_id: nodeId, message }),
+        });
+        if (!res.ok) throw new Error("发送失败");
+        return res.json();
+      },
+      async branch(fromNode, title) {
+        const res = await fetch("/api/branch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from_node: fromNode, title }),
+        });
+        if (!res.ok) throw new Error("创建分支失败");
+        return res.json();
+      },
+      async delete(nodeId) {
+        const res = await fetch("/api/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ node_id: nodeId }),
+        });
+        if (!res.ok) throw new Error("删除失败");
+        return res.json();
+      },
+      async layout(layouts) {
+        const res = await fetch("/api/layout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ layouts }),
+        });
+        if (!res.ok) throw new Error("保存布局失败");
+        return res.json();
+      },
+      async export() {
+        const res = await fetch("/api/export");
+        if (!res.ok) throw new Error("导出失败");
+        return res.json();
+      },
+      async import(data) {
+        const res = await fetch("/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+        });
+        if (!res.ok) throw new Error("导入失败");
+        return res.json();
+      },
+      async renameNode(nodeId, title) {
+        const res = await fetch("/api/rename_node", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ node_id: nodeId, title }),
+        });
+        if (!res.ok) throw new Error("重命名失败");
+        return res.json();
+      },
+      async renameCanvas(title) {
+        const res = await fetch("/api/rename_canvas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        if (!res.ok) throw new Error("重命名失败");
+        return res.json();
+      },
+      async newCanvas(title) {
+        const res = await fetch("/api/new_canvas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        if (!res.ok) throw new Error("新建画布失败");
+        return res.json();
+      },
+    };
+
+    let currentNodes = [];
+    let canvasTitle = "多分支对话画布";
+    let positions = {};
+    let nodeSizes = {};
+    let nodeScrolls = {};
+    let scale = 1;
+    let offset = { x: 0, y: 0 };
+    let isPanning = false;
+    let panStart = null;
+    let panOffsetStart = null;
+    let currentTarget = null;
+    let draggingNode = null;
+    let dragStart = null;
+    let resizingNode = null;
+    let resizeStart = null;
+    let drawQueued = false;
+    const generatingNodes = new Set();
+    const pendingMessages = {};
+    let userSized = {};
+    let collapseState = {};
+    let saveTimer = null;
+    let layoutReset = false;
+    let composerResizing = false;
+    let composerResizeStartY = 0;
+    let composerResizeStartHeight = 88;
+
+    function resetLayoutState() {
+      layoutReset = true;
+      positions = {};
+      nodeSizes = {};
+      nodeScrolls = {};
+      userSized = {};
+      collapseState = {};
+      offset = { x: 0, y: 0 };
+      scale = 1;
+      setTransform();
+    }
+
+    function setTransform() {
+      viewport.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${scale})`;
+    }
+
+    function setStatus(text, danger = false) {
+      if (danger) console.warn(text);
+    }
+
+    function syncCanvasTitle() {
+      if (canvasTitleEl && canvasTitle) canvasTitleEl.textContent = canvasTitle;
+    }
+
+    function computeDepth(nodes, id, cache) {
+      if (cache[id] !== undefined) return cache[id];
+      const node = nodes.find((n) => n.id === id);
+      if (!node) return 0;
+      if (!node.parent_id) cache[id] = 0;
+      else cache[id] = computeDepth(nodes, node.parent_id, cache) + 1;
+      return cache[id];
+    }
+
+    function visibleMessages(node) {
+      const filtered = node.messages.filter((m) => m.role !== "system");
+      const start = Number(node.inherited_count || 0);
+      return filtered.slice(start);
+    }
+
+    function mergeMessages(node) {
+      const pending = pendingMessages[node.id] || [];
+      return [...node.messages, ...pending];
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return "";
+      const lines = text.replace(/\r\n?/g, "\n").split("\n");
+      const htmlParts = [];
+      const paragraph = [];
+      let i = 0;
+
+      const renderInline = (str) => {
+        let inline = escapeHtml(str);
+        inline = inline.replace(/\$(.+?)\$/g, '<span class="math">$1</span>');
+        inline = inline.replace(/`([^`]+)`/g, "<code>$1</code>");
+        inline = inline.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        inline = inline.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+        inline = inline.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        return inline;
+      };
+
+      const flushParagraph = () => {
+        if (!paragraph.length) return;
+        const content = renderInline(paragraph.join(" ")).replace(/\n/g, "<br>");
+        htmlParts.push(`<p>${content}</p>`);
+        paragraph.length = 0;
+      };
+
+      while (i < lines.length) {
+        const rawLine = lines[i];
+        const line = rawLine.trimEnd();
+
+        if (!line.trim()) {
+          flushParagraph();
+          i += 1;
+          continue;
+        }
+
+        // Code fence
+        if (/^```/.test(line)) {
+          flushParagraph();
+          const lang = line.replace(/```/, "").trim() || "code";
+          i += 1;
+          const buf = [];
+          while (i < lines.length && !/^```/.test(lines[i].trim())) {
+            buf.push(lines[i]);
+            i += 1;
+          }
+          if (i < lines.length && /^```/.test(lines[i].trim())) i += 1;
+          const raw = buf.join("\n");
+          const encoded = encodeURIComponent(raw);
+          const safe = escapeHtml(raw);
+          htmlParts.push(`<pre class="code" data-lang="${lang}" data-code="${encoded}"><button class="code-copy">复制</button><code>${safe}</code></pre>`);
+          continue;
+        }
+
+        // Math block
+        if (/^\s*\$\$/.test(line)) {
+          flushParagraph();
+          let content = line.replace(/^\s*\$\$\s*/, "");
+          i += 1;
+          while (i < lines.length && !/\$\$/.test(lines[i].trim())) {
+            content += "\n" + lines[i];
+            i += 1;
+          }
+          if (i < lines.length) {
+            const closing = lines[i].replace(/\$\$/, "");
+            if (closing) content += "\n" + closing;
+            i += 1;
+          }
+          htmlParts.push(`<div class="math-block">${escapeHtml(content.trim())}</div>`);
+          continue;
+        }
+
+        // Horizontal rule
+        if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
+          flushParagraph();
+          htmlParts.push("<hr>");
+          i += 1;
+          continue;
+        }
+
+        // Blockquote
+        if (/^\s*>/.test(line)) {
+          flushParagraph();
+          const block = [];
+          while (i < lines.length && /^\s*>/.test(lines[i].trim())) {
+            block.push(lines[i].replace(/^\s*>\s?/, ""));
+            i += 1;
+          }
+          const nested = renderMarkdown(block.join("\n"));
+          htmlParts.push(`<blockquote>${nested}</blockquote>`);
+          continue;
+        }
+
+        // Table
+        if (/^\|/.test(line) && i + 1 < lines.length && /^\|?\s*[:\-| ]+\|?\s*$/.test(lines[i + 1].trim())) {
+          flushParagraph();
+          const headerLine = line;
+          const rows = [];
+          i += 2;
+          while (i < lines.length && /^\|/.test(lines[i].trim())) {
+            rows.push(lines[i]);
+            i += 1;
+          }
+          const parseRow = (l) => l.trim().replace(/^\||\|$/g, "").split(/\s*\|\s*/).map((c) => renderInline(c));
+          const headers = parseRow(headerLine);
+          const body = rows.map((r) => parseRow(r));
+          const headHtml = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
+          const bodyHtml = body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+          htmlParts.push(`<table>${headHtml}${bodyHtml}</table>`);
+          continue;
+        }
+
+        // Lists (unordered or ordered)
+        const listMatch = line.match(/^\s*([-*+]|\d+[.)])\s+(.*)/);
+        if (listMatch) {
+          flushParagraph();
+          const isOrdered = /^\d+[.)]$/.test(listMatch[1]);
+          const items = [];
+          while (i < lines.length) {
+            const m = lines[i].trim().match(/^([-*+]|\d+[.)])\s+(.*)/);
+            if (!m) break;
+            const content = m[2];
+            const task = content.match(/^\[( |x|X)\]\s+(.*)$/);
+            if (task) {
+              const checked = task[1].toLowerCase() === "x";
+              const label = renderInline(task[2]);
+              items.push(`<li class="task"><span class="box"><input type="checkbox" ${checked ? "checked" : ""} disabled> ${label}</span></li>`);
+            } else {
+              items.push(`<li>${renderInline(content)}</li>`);
+            }
+            i += 1;
+          }
+          htmlParts.push(isOrdered ? `<ol>${items.join("")}</ol>` : `<ul>${items.join("")}</ul>`);
+          continue;
+        }
+
+        // Heading
+        const hMatch = line.match(/^\s*(#{1,6})\s+(.*)$/);
+        if (hMatch) {
+          flushParagraph();
+          const level = hMatch[1].length;
+          htmlParts.push(`<h${level}>${renderInline(hMatch[2].trim())}</h${level}>`);
+          i += 1;
+          continue;
+        }
+
+        paragraph.push(line);
+        i += 1;
+      }
+
+      flushParagraph();
+      return htmlParts.join("");
+    }
+
+    function renderBubbleContent(el, message) {
+      if (message.role === "assistant") {
+        el.innerHTML = renderMarkdown(message.content);
+      } else {
+        el.textContent = message.content;
+      }
+    }
+
+    function shouldCollapseMessage(message) {
+      const text = message?.content || "";
+      const lines = text.split(/\r?\n/);
+      return text.length > 420 || lines.length > 8;
+    }
+
+    function collapseKey(nodeId, index) {
+      return `${nodeId}:${index}`;
+    }
+
+    function collapseMapByNode(nodes) {
+      const idSet = new Set(nodes.map((n) => n.id));
+      const map = {};
+      Object.entries(collapseState).forEach(([key, value]) => {
+        const [id, index] = key.split(":");
+        if (!id || index === undefined) return;
+        if (!idSet.has(id)) return;
+        map[id] = map[id] || {};
+        map[id][index] = !!value;
+      });
+      nodes.forEach((n) => {
+        if (!map[n.id]) map[n.id] = {};
+      });
+      return map;
+    }
+
+    function pushPending(nodeId, text) {
+      pendingMessages[nodeId] = pendingMessages[nodeId] || [];
+      pendingMessages[nodeId].push({ role: "user", content: text });
+    }
+
+    function popPending(nodeId, text) {
+      const arr = pendingMessages[nodeId];
+      if (!arr) return;
+      const idx = arr.findIndex((m) => m.content === text);
+      if (idx >= 0) arr.splice(idx, 1);
+      if (!arr.length) delete pendingMessages[nodeId];
+    }
+
+    function clearPending(nodeId) {
+      delete pendingMessages[nodeId];
+    }
+
+    function layoutNodes(nodes) {
+      const depthCache = {};
+      const grouped = {};
+      nodes.forEach((n) => {
+        const depth = computeDepth(nodes, n.id, depthCache);
+        grouped[depth] = grouped[depth] || [];
+        grouped[depth].push(n);
+      });
+      const spacingX = 260;
+      const spacingY = 220;
+      const pos = {};
+      Object.keys(grouped)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .forEach((depth) => {
+          grouped[depth].forEach((n, idx) => {
+            // Vertical orientation: depth -> y
+            pos[n.id] = { x: 80 + idx * spacingX, y: 60 + depth * spacingY };
+          });
+        });
+      return pos;
+    }
+
+    function hydrateLayoutFromServer(nodes) {
+      let changed = false;
+      nodes.forEach((n) => {
+        if (n.layout) {
+          const lx = Number(n.layout.x);
+          const ly = Number(n.layout.y);
+          const lw = Number(n.layout.width);
+          const lh = Number(n.layout.height);
+          const ls = Number(n.layout.scroll_top ?? 0);
+          if ((layoutReset || !positions[n.id]) && Number.isFinite(lx) && Number.isFinite(ly)) {
+            positions[n.id] = { x: lx, y: ly };
+            changed = true;
+          }
+          if ((layoutReset || !nodeSizes[n.id]) && Number.isFinite(lw) && Number.isFinite(lh)) {
+            nodeSizes[n.id] = {
+              width: lw || 240,
+              height: lh || 160,
+            };
+            changed = true;
+          }
+          nodeSizes[n.id] = {
+            width: nodeSizes[n.id]?.width || 240,
+            height: nodeSizes[n.id]?.height || 160,
+          };
+          if (userSized[n.id] === undefined) userSized[n.id] = n.layout.user_sized !== undefined ? !!n.layout.user_sized : true;
+          const hasLocalScroll = nodeScrolls[n.id] !== undefined && !layoutReset;
+          if (Number.isFinite(ls) && !hasLocalScroll) nodeScrolls[n.id] = Math.max(0, ls);
+          const collapsedRaw = n.layout.collapsed;
+          if (collapsedRaw && typeof collapsedRaw === "object") {
+            Object.entries(collapsedRaw).forEach(([index, state]) => {
+              const key = collapseKey(n.id, index);
+              if (layoutReset || collapseState[key] === undefined) {
+                collapseState[key] = !!state;
+              }
+            });
+          }
+        }
+      });
+      return changed;
+    }
+
+    function ensurePositions(nodes) {
+      const defaults = layoutNodes(nodes);
+      const isFirstLayout = Object.keys(positions).length === 0;
+      let changed = false;
+      const idSet = new Set(nodes.map((n) => n.id));
+      nodes.forEach((n) => {
+        if (!nodeSizes[n.id]) {
+          nodeSizes[n.id] = { width: 240, height: 160 };
+          changed = true;
+        }
+        if (!positions[n.id]) {
+          const parentPos = n.parent_id ? positions[n.parent_id] : null;
+          const parentSize = n.parent_id ? nodeSizes[n.parent_id] : null;
+          if (parentPos && parentSize) {
+            positions[n.id] = {
+              x: parentPos.x + 24,
+              y: parentPos.y + parentSize.height + 80,
+            };
+          } else {
+            positions[n.id] = defaults[n.id] || { x: 60, y: 60 };
+          }
+          changed = true;
+        }
+        if (userSized[n.id] === undefined) userSized[n.id] = false;
+      });
+      if (isFirstLayout) {
+        const root = nodes.find((n) => !n.parent_id);
+        if (root) {
+          const rect = canvasWrap.getBoundingClientRect();
+          const size = nodeSizes[root.id] || { width: 240, height: 160 };
+          positions[root.id] = {
+            x: Math.max(20, (rect.width - size.width) / 2),
+            y: Math.max(20, (rect.height - size.height) / 2),
+          };
+          changed = true;
+        }
+      }
+      // drop removed nodes
+      Object.keys(positions).forEach((id) => {
+        if (!idSet.has(id)) delete positions[id];
+      });
+      Object.keys(nodeSizes).forEach((id) => {
+        if (!idSet.has(id)) delete nodeSizes[id];
+      });
+      Object.keys(nodeScrolls).forEach((id) => {
+        if (!idSet.has(id)) delete nodeScrolls[id];
+      });
+      Object.keys(userSized).forEach((id) => {
+        if (!idSet.has(id)) delete userSized[id];
+      });
+      Object.keys(collapseState).forEach((key) => {
+        const [id] = key.split(":");
+        if (!idSet.has(id)) delete collapseState[key];
+      });
+      if (layoutReset) {
+        layoutReset = false;
+      }
+      return changed;
+    }
+
+    function applyNodePositions() {
+      document.querySelectorAll(".node").forEach((el) => {
+        const id = el.dataset.nodeId;
+        const p = positions[id];
+        const size = nodeSizes[id];
+        if (size) {
+          el.style.width = `${size.width}px`;
+          el.style.height = `${size.height}px`;
+        }
+        if (p) {
+          el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+        }
+      });
+    }
+
+    function applySelection() {
+      document.querySelectorAll(".node").forEach((el) => {
+        if (el.dataset.nodeId === currentTarget) el.classList.add("selected");
+        else el.classList.remove("selected");
+      });
+      const node = getSelectedNode();
+      currentBranchLabel.textContent = node ? `当前分支：${node.title}` : "当前分支：-";
+      measureAndDraw();
+      updateBranchButton();
+      updateComposerState();
+    }
+
+    function getSelectedNode() {
+      return currentNodes.find((n) => n.id === currentTarget);
+    }
+
+    function hasChildren(nodeId) {
+      return currentNodes.some((n) => n.parent_id === nodeId);
+    }
+
+    function canBranch(node) {
+      if (!node) return false;
+      const nonSystem = node.messages.filter((m) => m.role !== "system");
+      const ownCount = nonSystem.length - (node.inherited_count || 0);
+      return ownCount > 0;
+    }
+
+    function updateComposerState() {
+      const node = getSelectedNode();
+      const blocked = node ? hasChildren(node.id) : true;
+      messageInput.disabled = blocked || !node;
+      sendBtn.disabled = blocked || !node;
+      messageInput.placeholder = !node
+        ? "选择一个分支后再开始聊天"
+        : blocked
+          ? "该分支已派生子分支，聊天被锁定"
+          : "在选定分支继续聊天，或先派生一个分支。";
+      composerForm.dataset.blocked = blocked ? "1" : "";
+      updateComposerVisibility();
+    }
+
+    function updateBranchButton() {
+      const node = getSelectedNode();
+      const enabled = !!node && canBranch(node);
+      branchBtn.disabled = !enabled;
+      branchBtn.title = enabled ? "" : "生成消息后才能创建分支";
+    }
+
+    function updateComposerVisibility() {
+      const hasSelection = !!getSelectedNode();
+      if (hasSelection) composerForm.classList.remove("composer-hidden");
+      else composerForm.classList.add("composer-hidden");
+    }
+
+    function getComposerHeight() {
+      const raw = parseFloat(getComputedStyle(composerForm).getPropertyValue("--composer-input-height"));
+      return Number.isFinite(raw) ? raw : 88;
+    }
+
+    function setComposerHeight(value) {
+      const min = 72;
+      const max = Math.min(360, window.innerHeight - 140);
+      const clamped = Math.max(min, Math.min(max, value));
+      composerForm.style.setProperty("--composer-input-height", `${clamped}px`);
+    }
+
+    function snapshotScrollPositions() {
+      const snapshot = {};
+      nodesEl.querySelectorAll(".stack").forEach((stack) => {
+        const id = stack.dataset.nodeId;
+        if (id) snapshot[id] = stack.scrollTop;
+      });
+      return snapshot;
+    }
+
+    function restoreScrollPositions(snapshot) {
+      Object.entries(snapshot).forEach(([id, top]) => {
+        const stack = nodesEl.querySelector(`.stack[data-node-id="${id}"]`);
+        if (stack) {
+          stack.scrollTop = top;
+          nodeScrolls[id] = top;
+        }
+      });
+    }
+
+    function measureNodeSizes() {
+      const sizes = {};
+      currentNodes.forEach((n) => {
+        const s = nodeSizes[n.id] || { width: 240, height: 160 };
+        sizes[n.id] = { ...s };
+      });
+      return sizes;
+    }
+
+    function autoFitNodes() {
+      const scrollSnapshot = snapshotScrollPositions();
+      const cards = nodesEl.querySelectorAll(".node");
+      let updated = false;
+      cards.forEach((card) => {
+        const id = card.dataset.nodeId;
+        if (!id) return;
+        const size = nodeSizes[id] || { width: 240, height: 160 };
+        const prevHeight = size.height;
+        const prevWidth = size.width;
+        card.style.height = "auto";
+        const desiredHeight = Math.max(160, Math.min(card.scrollHeight, 420));
+        const nextHeight = userSized[id] ? Math.max(desiredHeight, prevHeight) : desiredHeight;
+        nodeSizes[id] = { width: prevWidth, height: nextHeight };
+        card.style.height = `${nextHeight}px`;
+        if (Math.abs(nextHeight - prevHeight) > 1) updated = true;
+        if (!userSized[id] && card.style.width) nodeSizes[id].width = prevWidth;
+      });
+      if (Object.keys(scrollSnapshot).length) {
+        requestAnimationFrame(() => restoreScrollPositions(scrollSnapshot));
+      }
+      return updated;
+    }
+
+    function render(nodes) {
+      currentNodes = nodes;
+      if (!nodes.length) {
+        nodesEl.innerHTML = '<div class="empty">暂无节点</div>';
+        edgesEl.innerHTML = "";
+        branchBtn.disabled = true;
+        branchBtn.title = "暂无可用分支";
+        updateComposerState();
+        return;
+      }
+
+      hydrateLayoutFromServer(nodes);
+      const changed = ensurePositions(nodes);
+      nodesEl.innerHTML = "";
+      nodes.forEach((node) => {
+        const card = document.createElement("div");
+        card.className = "node";
+        card.dataset.nodeId = node.id;
+        const size = nodeSizes[node.id] || { width: 240, height: 160 };
+        card.style.width = `${size.width}px`;
+        card.style.height = `${size.height}px`;
+
+        const header = document.createElement("div");
+        header.className = "node-header";
+        const title = document.createElement("h3");
+        title.textContent = node.title;
+        header.appendChild(title);
+        header.addEventListener("mousedown", (e) => {
+          if (e.detail > 1) return;
+          if (e.button !== 0) return;
+          draggingNode = node.id;
+          dragStart = {
+            x: e.clientX,
+            y: e.clientY,
+            nodeX: positions[node.id].x,
+            nodeY: positions[node.id].y,
+          };
+          e.preventDefault();
+        });
+        header.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          promptRenameNode(node);
+        });
+        header.addEventListener("click", () => {
+          currentTarget = node.id;
+          applySelection();
+        });
+        card.appendChild(header);
+
+        if (generatingNodes.has(node.id)) {
+          const loading = document.createElement("div");
+          loading.className = "node-loading";
+          loading.innerHTML = `<div class="spinner"></div><span>生成中</span>`;
+          card.appendChild(loading);
+        }
+
+        const stack = document.createElement("div");
+        stack.className = "stack";
+        stack.dataset.nodeId = node.id;
+        stack.addEventListener("scroll", () => {
+          nodeScrolls[node.id] = stack.scrollTop;
+          scheduleSaveLayout();
+        });
+        const mergedMessages = mergeMessages(node);
+        const msgs = visibleMessages({ ...node, messages: mergedMessages });
+        if (!msgs.length) {
+          const empty = document.createElement("div");
+          empty.className = "bubble";
+          empty.textContent = "等待消息";
+          stack.appendChild(empty);
+        } else {
+          msgs.forEach((m, msgIndex) => {
+            const bubble = document.createElement("div");
+            bubble.className = `bubble ${m.role}`;
+            const body = document.createElement("div");
+            body.className = "bubble-body";
+            renderBubbleContent(body, m);
+            bubble.appendChild(body);
+
+            const key = collapseKey(node.id, msgIndex);
+            const collapsible = shouldCollapseMessage(m);
+            const collapsed = collapsible ? (collapseState[key] ?? true) : false;
+
+            if (collapsible) {
+              bubble.classList.add("collapsible");
+              bubble.classList.toggle("collapsed", collapsed);
+              const fade = document.createElement("div");
+              fade.className = "bubble-fade";
+              if (!collapsed) fade.style.display = "none";
+              bubble.appendChild(fade);
+
+              const toggle = document.createElement("button");
+              toggle.type = "button";
+              toggle.className = "collapse-toggle";
+              toggle.textContent = collapsed ? "展开" : "收起";
+              toggle.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const stackEl = bubble.closest(".stack");
+                const prevScroll = stackEl ? stackEl.scrollTop : 0;
+                const isCollapsed = bubble.classList.contains("collapsed");
+                const nextCollapsed = !isCollapsed;
+                collapseState[key] = nextCollapsed;
+                bubble.classList.toggle("collapsed", nextCollapsed);
+                toggle.textContent = nextCollapsed ? "展开" : "收起";
+                fade.style.display = nextCollapsed ? "" : "none";
+                autoFitNodes();
+                applyNodePositions();
+                measureAndDraw();
+                scheduleSaveLayout();
+                if (stackEl) {
+                  requestAnimationFrame(() => {
+                    stackEl.scrollTop = prevScroll;
+                    nodeScrolls[node.id] = prevScroll;
+                  });
+                }
+              });
+              bubble.appendChild(toggle);
+            }
+
+            stack.appendChild(bubble);
+          });
+        }
+        card.appendChild(stack);
+
+        card.addEventListener("click", (e) => {
+          if (e.target.closest(".node-header")) return;
+          if (e.target.closest(".resize-handle")) return;
+          const selectedText = window.getSelection ? window.getSelection().toString() : "";
+          if (selectedText) return;
+          currentTarget = node.id;
+          applySelection();
+        });
+
+        const handle = document.createElement("div");
+        handle.className = "resize-handle";
+        handle.addEventListener("mousedown", (e) => {
+          e.stopPropagation();
+          resizingNode = node.id;
+          const rect = card.getBoundingClientRect();
+          resizeStart = {
+            x: e.clientX,
+            y: e.clientY,
+            width: rect.width / scale,
+            height: rect.height / scale,
+          };
+        });
+        card.appendChild(handle);
+
+        // body remains selectable for copy; selection handled via header click
+
+        nodesEl.appendChild(card);
+
+        requestAnimationFrame(() => {
+          if (nodeScrolls[node.id] !== undefined) stack.scrollTop = nodeScrolls[node.id];
+        });
+      });
+
+      if (currentTarget && !nodes.find((n) => n.id === currentTarget)) {
+        currentTarget = null;
+      }
+
+      const resized = autoFitNodes();
+      applyNodePositions();
+      measureAndDraw();
+      if (changed || resized) scheduleSaveLayout();
+      applySelection();
+      updateBranchButton();
+    }
+
+    function clamp(val, min, max) {
+      return Math.min(Math.max(val, min), max);
+    }
+
+    canvasWrap.addEventListener("wheel", (e) => {
+      if (currentTarget) return; // 当有分支聚焦时，用于滚动内容，不缩放
+      e.preventDefault();
+      const rect = canvasWrap.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const prevScale = scale;
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      scale = clamp(scale * factor, 0.5, 2.5);
+      offset.x = cx - ((cx - offset.x) * scale) / prevScale;
+      offset.y = cy - ((cy - offset.y) * scale) / prevScale;
+      setTransform();
+      measureAndDraw();
+    });
+
+    canvasWrap.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest(".node")) return; // node dragging handled separately
+      if (currentTarget) {
+        currentTarget = null;
+        applySelection();
+        return;
+      }
+      isPanning = true;
+      panStart = { x: e.clientX, y: e.clientY };
+      panOffsetStart = { ...offset };
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        offset = { x: panOffsetStart.x + dx, y: panOffsetStart.y + dy };
+        setTransform();
+      }
+      if (draggingNode) {
+        const dx = (e.clientX - dragStart.x) / scale;
+        const dy = (e.clientY - dragStart.y) / scale;
+        positions[draggingNode] = {
+          x: dragStart.nodeX + dx,
+          y: dragStart.nodeY + dy,
+        };
+        applyNodePositions();
+        measureAndDraw();
+      }
+      if (resizingNode) {
+        const dx = (e.clientX - resizeStart.x) / scale;
+        const dy = (e.clientY - resizeStart.y) / scale;
+        const next = {
+          width: Math.max(220, resizeStart.width + dx),
+          height: Math.max(160, resizeStart.height + dy),
+        };
+        nodeSizes[resizingNode] = next;
+        userSized[resizingNode] = true;
+        applyNodePositions();
+        measureAndDraw();
+      }
+    });
+
+    window.addEventListener("mouseup", () => {
+      isPanning = false;
+      const dragged = draggingNode;
+      const resized = resizingNode;
+      draggingNode = null;
+      dragStart = null;
+      resizingNode = null;
+      resizeStart = null;
+      applySelection();
+      if (dragged || resized) scheduleSaveLayout();
+    });
+
+    async function refresh() {
+      setStatus("同步画布...");
+      try {
+        const data = await api.getNodes();
+        if (data.title) {
+          canvasTitle = data.title;
+          syncCanvasTitle();
+        }
+        render(data.nodes);
+        setStatus("就绪");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "加载失败", true);
+      }
+    }
+
+    async function branchFrom(nodeId) {
+      const title = `分支@${new Date().toLocaleTimeString()}`;
+      setStatus("创建分支中...");
+      try {
+        const res = await api.branch(nodeId, title);
+        currentTarget = res.node.id;
+        await refresh();
+        applySelection();
+      } catch (err) {
+        setStatus(err.message || "创建失败", true);
+      } finally {
+        setTimeout(() => setStatus("就绪"), 800);
+      }
+    }
+
+    async function promptRenameNode(node) {
+      const value = prompt("请输入分支名称", node.title || "");
+      if (value === null) return;
+      const next = value.trim();
+      if (!next || next === node.title) return;
+      setStatus("重命名中...");
+      try {
+        await api.renameNode(node.id, next);
+        await refresh();
+        currentTarget = node.id;
+        applySelection();
+      } catch (err) {
+        setStatus(err.message || "重命名失败", true);
+      } finally {
+        setTimeout(() => setStatus("就绪"), 800);
+      }
+    }
+
+    async function promptRenameCanvas() {
+      const value = prompt("请输入画布名称", canvasTitle || "");
+      if (value === null) return;
+      const next = value.trim();
+      if (!next || next === canvasTitle) return;
+      setStatus("重命名画布中...");
+      try {
+        const res = await api.renameCanvas(next);
+        canvasTitle = res.title || next;
+        syncCanvasTitle();
+      } catch (err) {
+        setStatus(err.message || "重命名失败", true);
+      } finally {
+        setTimeout(() => setStatus("就绪"), 800);
+      }
+    }
+
+    document.getElementById("delete-current").onclick = async () => {
+      const nodeId = currentTarget;
+      if (!nodeId) return;
+      if (nodeId === "root") {
+        setStatus("根节点不能删除", true);
+        return;
+      }
+      if (!confirm("删除该节点及其子分支？")) return;
+      setStatus("删除中...");
+      try {
+        await api.delete(nodeId);
+        await refresh();
+      } catch (err) {
+        setStatus(err.message || "删除失败", true);
+      } finally {
+        setTimeout(() => setStatus("就绪"), 800);
+      }
+    };
+    document.getElementById("new-branch-global").onclick = async () => {
+      if (branchBtn.disabled) return;
+      const nodeId = currentTarget;
+      if (!nodeId) return;
+      await branchFrom(nodeId);
+      applySelection();
+    };
+
+    if (composerResizeHandle) {
+      const onComposerDrag = (e) => {
+        if (!composerResizing) return;
+        const delta = composerResizeStartY - e.clientY;
+        setComposerHeight(composerResizeStartHeight + delta);
+      };
+      const endComposerDrag = () => {
+        if (!composerResizing) return;
+        composerResizing = false;
+        document.body.style.userSelect = "";
+        window.removeEventListener("pointermove", onComposerDrag);
+        window.removeEventListener("pointerup", endComposerDrag);
+        window.removeEventListener("pointercancel", endComposerDrag);
+      };
+      composerResizeHandle.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 && e.pointerType !== "touch") return;
+        composerResizing = true;
+        composerResizeStartY = e.clientY;
+        composerResizeStartHeight = getComposerHeight();
+        document.body.style.userSelect = "none";
+        if (composerResizeHandle.setPointerCapture) composerResizeHandle.setPointerCapture(e.pointerId);
+        window.addEventListener("pointermove", onComposerDrag);
+        window.addEventListener("pointerup", endComposerDrag);
+        window.addEventListener("pointercancel", endComposerDrag);
+      });
+    }
+
+    window.addEventListener("resize", () => setComposerHeight(getComposerHeight()));
+
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.ctrlKey) {
+        e.preventDefault();
+        if (composerForm.requestSubmit) composerForm.requestSubmit();
+        else composerForm.submit();
+      }
+    });
+
+    composerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nodeId = currentTarget;
+      const text = messageInput.value.trim();
+      if (!text || !nodeId) return;
+      if (hasChildren(nodeId)) {
+        setStatus("该分支已有子分支，聊天已锁定", true);
+        updateComposerState();
+        return;
+      }
+      messageInput.value = "";
+      pushPending(nodeId, text);
+      generatingNodes.add(nodeId);
+      render(currentNodes);
+      try {
+        await api.send(nodeId, text);
+        clearPending(nodeId);
+        await refresh();
+        applySelection();
+        scheduleSaveLayout();
+      } catch (err) {
+        generatingNodes.delete(nodeId);
+        popPending(nodeId, text);
+        setStatus(err.message || "发送失败", true);
+        render(currentNodes);
+      }
+      generatingNodes.delete(nodeId);
+      render(currentNodes);
+    });
+
+    exportBtn.onclick = async () => {
+      await persistLayout(true);
+      try {
+        const data = await api.export();
+        const payload = JSON.stringify(data, null, 2);
+        const suggestedName = `canvas-chat-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+        if (window.showSaveFilePicker) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName,
+              types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(payload);
+            await writable.close();
+          } catch (err) {
+            if (err?.name !== "AbortError") throw err;
+          }
+        } else {
+          const blob = new Blob([payload], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = suggestedName;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch (err) {
+        setStatus(err.message || "导出失败", true);
+      }
+    };
+
+    importBtn.onclick = () => importFile.click();
+    importFile.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      try {
+        const parsed = JSON.parse(text);
+        resetLayoutState();
+        await api.import(parsed);
+        await refresh();
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "导入失败", true);
+      } finally {
+        importFile.value = "";
+      }
+    });
+
+    if (brandEl) {
+      brandEl.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        promptRenameCanvas();
+      });
+    }
+
+    if (newCanvasBtn) {
+      newCanvasBtn.addEventListener("click", async () => {
+        if (!confirm("新建画布会清空当前内容，确认继续？")) return;
+        const name = prompt("请输入新画布名称（可选）", "");
+        const title = name ? name.trim() : "";
+        resetLayoutState();
+        currentTarget = "root";
+        setStatus("新建画布中...");
+        try {
+          const data = await api.newCanvas(title || undefined);
+          if (data.title) {
+            canvasTitle = data.title;
+            syncCanvasTitle();
+          }
+          await refresh();
+        } catch (err) {
+          setStatus(err.message || "新建画布失败", true);
+        } finally {
+          setTimeout(() => setStatus("就绪"), 800);
+        }
+      });
+    }
+
+    nodesEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".code-copy");
+      if (!btn) return;
+      const pre = btn.closest("pre.code");
+      const code = pre?.dataset.code ? decodeURIComponent(pre.dataset.code) : "";
+      try {
+        await navigator.clipboard.writeText(code);
+        btn.textContent = "已复制";
+        setTimeout(() => (btn.textContent = "复制"), 800);
+      } catch (_) {
+        btn.textContent = "失败";
+        setTimeout(() => (btn.textContent = "复制"), 800);
+      }
+    });
+
+    function measureAndDraw() {
+      if (!edgesEl) return;
+      if (!currentNodes.length) {
+        edgesEl.innerHTML = "";
+        return;
+      }
+
+      const selected = currentTarget;
+      const nodeMap = new Map(currentNodes.map((n) => [n.id, n]));
+      const paths = [];
+
+      currentNodes.forEach((child) => {
+        if (!child.parent_id) return;
+        const parent = nodeMap.get(child.parent_id);
+        const parentPos = positions[child.parent_id];
+        const childPos = positions[child.id];
+        const parentSize = nodeSizes[child.parent_id];
+        const childSize = nodeSizes[child.id];
+        if (!parent || !parentPos || !childPos || !parentSize || !childSize) return;
+
+        const startX = parentPos.x + parentSize.width / 2;
+        const startY = parentPos.y + parentSize.height;
+        const endX = childPos.x + childSize.width / 2;
+        const endY = childPos.y;
+        const dy = Math.max(40, (endY - startY) * 0.5);
+        const ctrl1Y = startY + dy;
+        const ctrl2Y = endY - dy;
+        const d = `M${startX},${startY} C ${startX},${ctrl1Y} ${endX},${ctrl2Y} ${endX},${endY}`;
+        const isActive = selected === child.id || selected === child.parent_id;
+        paths.push(`<path class="edge${isActive ? " selected" : ""}" d="${d}" />`);
+      });
+
+      edgesEl.innerHTML = `<g>${paths.join("")}</g>`;
+    }
+
+    async function persistLayout(immediate = false) {
+      if (!currentNodes.length) return;
+      if (saveTimer && !immediate) return;
+      if (!immediate) {
+        saveTimer = setTimeout(() => {
+          saveTimer = null;
+          persistLayout(true);
+        }, 300);
+        return;
+      }
+      saveTimer = null;
+      const collapsedByNode = collapseMapByNode(currentNodes);
+      const layouts = currentNodes.map((n) => {
+        const pos = positions[n.id];
+        const size = nodeSizes[n.id];
+        const scroll = nodeScrolls[n.id] ?? 0;
+        return {
+          node_id: n.id,
+          x: pos?.x ?? 60,
+          y: pos?.y ?? 60,
+          width: size?.width ?? 240,
+          height: size?.height ?? 160,
+          user_sized: !!userSized[n.id],
+          scroll_top: scroll,
+          collapsed: collapsedByNode[n.id] || {},
+        };
+      });
+      try {
+        await api.layout(layouts);
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function scheduleSaveLayout() {
+      persistLayout(false);
+    }
+
+    setComposerHeight(getComposerHeight());
+    syncCanvasTitle();
+    setTransform();
+    refresh();
+  </script>
+</body>
+</html>
