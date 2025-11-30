@@ -47,6 +47,15 @@ uvicorn app:app --reload --port 8886
 - 右下输入区选择分支、发送消息（Ctrl+Enter 可一键发送）。
 - 节点卡片右下角可拖拽调节大小，头部拖拽可移动位置，按钮派生分支。
 
+## Star History
+
+<a href="https://www.star-history.com/#Norsico/CanvasChat&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norsico/CanvasChat&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norsico/CanvasChat&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Norsico/CanvasChat&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## 开发者指南
 - 入口类：`canvas_chat.ChatCanvas`
