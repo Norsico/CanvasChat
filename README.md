@@ -22,12 +22,22 @@ CANVAS_MODEL=model_name
 CANVAS_SYSTEM_PROMPT=You are a helpful canvas chat assistant.
 ```
 
-## 安装
+## Docker 部署
+确保 `.env` 中已配置好 `CANVAS_API_KEY/CANVAS_BASE_URL/CANVAS_MODEL` 等变量，然后：
+```
+docker build -t canvaschat .
+docker run -d --env-file .env -p 8886:8000 --name canvaschat-app canvaschat
+```
+访问 `http://127.0.0.1:8886` 即可使用。默认命令运行 `uvicorn app:app --host 0.0.0.0 --port 8886`，如需修改端口可调整 `docker run -p`。
+
+## 通过源码部署
+
+### 安装
 ```
 pip install -r requirements.txt
 ```
 
-## 运行前端 + 后端
+### 运行前端 + 后端
 启动 FastAPI（包含静态前端）：
 ```
 uvicorn app:app --reload --port 8886
@@ -37,13 +47,6 @@ uvicorn app:app --reload --port 8886
 - 右下输入区选择分支、发送消息（Ctrl+Enter 可一键发送）。
 - 节点卡片右下角可拖拽调节大小，头部拖拽可移动位置，按钮派生分支。
 
-## Docker 部署
-确保 `.env` 中已配置好 `CANVAS_API_KEY/CANVAS_BASE_URL/CANVAS_MODEL` 等变量，然后：
-```
-docker build -t canvaschat .
-docker run -d --env-file .env -p 8886:8000 --name canvaschat-app canvaschat
-```
-访问 `http://127.0.0.1:8886` 即可使用。默认命令运行 `uvicorn app:app --host 0.0.0.0 --port 8886`，如需修改端口可调整 `docker run -p`。
 
 ## 开发者指南
 - 入口类：`canvas_chat.ChatCanvas`
